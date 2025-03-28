@@ -21,9 +21,9 @@ simple_module_file: {
     fn simpleModule(ctx: *Context, inp: Input, out: *Output) void {
         // assumption : we need out-pins at the same time
         // assignments?
-        ctx.assign(out.out, inp.a.read(), .{});                      // out = a;
-        ctx.assign(out.out, inp.a.read(), .{t: .blocking, d: 1});       // out = #1 a;
-        ctx.assign(out.out, inp.a.read(), .{t: .nonBlocking, d: 2});    // out <= #2 a;
+        ctx.assign(out.out, inp.a, .{});                      // out = a;
+        ctx.assign(out.out, inp.a, .{t: .blocking, d: 1});       // out = #1 a;
+        ctx.assign(out.out, inp.a, .{t: .nonBlocking, d: 2});    // out <= #2 a;
 
         ctx.delay(3); //  #3;
         ctx.clk(.posedge); // @(posedge clk);
