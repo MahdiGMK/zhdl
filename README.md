@@ -32,12 +32,20 @@ simple_module_file: {
         for (ctx.iter(32)) |ctx_i| { ... }
     }
 
-    fn multiplexing(ctx: *Context, inp: Input, out: *Output) void {
-        ctx.submodule(multiplexingA, ctx, inp, out);
-        ctx.submodule(multiplexingB, ctx, inp, out);
+    fn submoduleSample(ctx: *Context, inp: Input, out: *Output) void {
+        // sub-circuit doesn't own its context
+        subcircuitA(ctx.subcircuit(), inp, out);
+        subcircuitB(ctx.subcircuit(), inp, out);
+        // sub-module owns its context
+        submoduleA(ctx.submodule(AContext), inp, out); 
+        submoduleB(ctx.submodule(BContext), inp, out); 
     }
 
-    fn multiplexingA(ctx: *Context, inp: Input, out: *Output) void { ... }
-    fn multiplexingB(ctx: *Context, inp: Input, out: *Output) void { ... }
+    fn subcircuitA(ctx: *AContext, inp: Input, out: *Output) void { ... }
+    fn subcircuitB(ctx: *BContext, inp: Input, out: *Output) void { ... }
+    const AContext = HDLCTX( struct { ... } );
+    const BContext = HDLCTX( struct { ... } );
+    fn submoduleA(ctx: *AContext, inp: Input, out: *Output) void { ... }
+    fn submoduleB(ctx: *BContext, inp: Input, out: *Output) void { ... }
 }
 ```
