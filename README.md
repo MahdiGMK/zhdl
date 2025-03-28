@@ -16,9 +16,9 @@ simple_module_file: {
     
     const Input = HDLINPUT( struct { a: In(u32), ... } ); // is In(...) realy needed?
     const Output = HDLOUTPUT( struct { out: Out(u32), ... } ); // is Out(...) realy needed?
-    const Context = HDLCTX( struct { reg: Reg(u64), ... } );
+    const Context = HDLCTX( struct { reg: Reg(u64, .posedge), ... } );
     
-    fn simpleModule(ctx: *Context, inp: Input, out: *Output) void {
+    comptime fn simpleModule(ctx: *Context, inp: *Input, out: *Output) void {
         // assumption : we need out-pins at the same time
         // assignments?
         ctx.assign(out.out, inp.a, .{});                      // out = a;
@@ -32,7 +32,7 @@ simple_module_file: {
         for (ctx.iter(32)) |ctx_i| { ... }
     }
 
-    fn submoduleSample(ctx: *Context, inp: Input, out: *Output) void {
+    comptime fn submoduleSample(ctx: *Context, inp: *Input, out: *Output) void {
         // sub-circuit doesn't own its context
         subcircuitA(ctx.subcircuit(), inp, out);
         subcircuitB(ctx.subcircuit(), inp, out);
@@ -41,11 +41,42 @@ simple_module_file: {
         submoduleB(ctx.submodule(BContext), inp, out); 
     }
 
-    fn subcircuitA(ctx: *AContext, inp: Input, out: *Output) void { ... }
-    fn subcircuitB(ctx: *BContext, inp: Input, out: *Output) void { ... }
+    comptime fn subcircuitA(ctx: *Context, inp: *Input, out: *Output) void { ... }
+    comptime fn subcircuitB(ctx: *Context, inp: *Input, out: *Output) void { ... }
     const AContext = HDLCTX( struct { ... } );
     const BContext = HDLCTX( struct { ... } );
-    fn submoduleA(ctx: *AContext, inp: Input, out: *Output) void { ... }
-    fn submoduleB(ctx: *BContext, inp: Input, out: *Output) void { ... }
+    comptime fn submoduleA(ctx: *AContext, inp: *Input, out: *Output) void { ... }
+    comptime fn submoduleB(ctx: *BContext, inp: *Input, out: *Output) void { ... }
+
+
+    // module simulation
+    fn simpleModule_sim() void {
+        var ctx = Context.init();
+        var inp = Input.init();
+        var out = Output.init();
+        
+        // module instantiation
+        simpleModule(ctx, inp, out);
+        
+        // module simulation
+        ctx.start();
+        inp.a.write(12);
+        ctx.step(); // step_clk() -> step, then toggle clk
+        std.debug.print("out : {}", .{out.out.read()});
+    }
+
+    // module synthesis
+    fn simpleModule_synth() void {
+        var ctx = Context.init();
+        var inp = Input.init();
+        var out = Output.init();
+        
+        // module instantiation
+        simpleModule(ctx, inp, out);
+
+        // module synthesis
+        ctx.synth(.verilog); // vhdl | ngspice | ...?
+        
+    }
 }
 ```
