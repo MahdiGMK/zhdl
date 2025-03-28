@@ -9,7 +9,7 @@
 
 1. general-purpose HLS
 
-# Patterns
+# API Patterns
 
 ```zig
 simple_module_file: {
@@ -21,15 +21,15 @@ simple_module_file: {
     fn simpleModule(ctx: *Context, inp: Input, out: *Output) void {
         // assumption : we need out-pins at the same time
         // assignments?
-        out.out.assign(inp.a.read(), .{});                      // out = a;
-        out.out.assign(inp.a.read(), .{t: .blocking, d: 1});       // out = #1 a;
-        out.out.assign(inp.a.read(), .{t: .nonBlocking, d: 2});    // out <= #2 a;
+        ctx.assign(out.out, inp.a.read(), .{});                      // out = a;
+        ctx.assign(out.out, inp.a.read(), .{t: .blocking, d: 1});       // out = #1 a;
+        ctx.assign(out.out, inp.a.read(), .{t: .nonBlocking, d: 2});    // out <= #2 a;
 
         ctx.delay(3); //  #3;
         ctx.clk(.posedge); // @(posedge clk);
 
         // idk - good to have! - clk/delay/cost optimization
-        for (ctx.iter(32)) |i| { ... }
+        for (ctx.iter(32)) |ctx_i| { ... }
     }
 
     fn multiplexing(ctx: *Context, inp: Input, out: *Output) void {
