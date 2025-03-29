@@ -26,17 +26,17 @@ pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 }
 pub const AssignType = enum(u1) { blocking, nonBlocking };
 pub const AssignDetail = struct { t: AssignType = .blocking, d: Delay = .fromPico(0) };
 pub const SynthTarget = enum { verilog, vhdl, ngspice };
-pub fn CTX(comptime underlayingType: type) type {
-    _ = underlayingType;
-    const T = struct {
+pub fn CTX(comptime Module: type) type {
+    return struct {
+        module: Module,
         pub fn init() @This() {
             @compileError("TODO : not implemented");
         }
-        pub fn assign(self: *@This(), onto: *WritableWire, value: *Wire, details: AssignDetail) void {
+        pub fn assign(self: *@This(), onto: *WritableWire, value: *Wire, detail: AssignDetail) void {
             _ = self;
             _ = onto;
             _ = value;
-            _ = details;
+            _ = detail;
             @compileError("TODO : not implemented");
         }
         pub fn delay(self: *@This(), amt: Delay) void {
@@ -92,32 +92,37 @@ pub fn CTX(comptime underlayingType: type) type {
             @compileError("TODO : not implemented");
         }
     };
-    _ = T;
-    @compileError("TODO : not implemented");
-    // return T;
 }
 
-fn Wire(comptime underlayingType: type) type {
-    _ = underlayingType;
+fn Wire(comptime UnderlayingType: type) type {
+    return struct { read: fn () UnderlayingType };
+}
+fn WritableWire(comptime UnderlayingType: type) type {
+    return struct { write: fn (*UnderlayingType) void, read: fn () UnderlayingType };
+}
+
+pub fn Reg(comptime UnderlayingType: type) type {
+    _ = UnderlayingType;
     @compileError("TODO : not implemented");
 }
-fn WritableWire(comptime underlayingType: type) type {
-    _ = underlayingType;
+pub fn Input(comptime UnderlayingType: type) type {
+    _ = UnderlayingType;
     @compileError("TODO : not implemented");
 }
-pub fn Reg(comptime underlayingType: type) type {
-    _ = underlayingType;
+pub fn Output(comptime UnderlayingType: type) type {
+    _ = UnderlayingType;
     @compileError("TODO : not implemented");
 }
-pub fn Input(comptime underlayingType: type) type {
-    _ = underlayingType;
+pub fn Inout(comptime UnderlayingType: type) type {
+    _ = UnderlayingType;
     @compileError("TODO : not implemented");
 }
-pub fn Output(comptime underlayingType: type) type {
-    _ = underlayingType;
-    @compileError("TODO : not implemented");
-}
-pub fn Inout(comptime underlayingType: type) type {
-    _ = underlayingType;
-    @compileError("TODO : not implemented");
+
+test "CTX magic" {
+    const Ctx = CTX(struct {
+        a: u32,
+        b: u16,
+    });
+    var ctx = Ctx.init();
+    ctx.module.a += 1;
 }
