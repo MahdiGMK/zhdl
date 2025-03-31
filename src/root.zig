@@ -1,20 +1,24 @@
 const std = @import("std");
 const testing = std.testing;
+pub const core = @import("core.zig");
+pub const logic_core = @import("logic_core.zig");
+pub const HDLId = core.HDLId;
+pub const Wire =
+    logic_core.Wire;
+pub const WritableWire =
+    logic_core.WritableWire;
 
-pub const HDLId = struct {
-    value: usize = 0,
-    const Self = @This();
-    pub fn valid(self: *Self) bool {
-        return self.value != 0;
-    }
-    pub fn newId() Self {
-        const State = struct {
-            var global_id_counter: usize = 0;
-        };
-        State.global_id_counter += 1;
-        return Self{ .value = State.global_id_counter };
-    }
-};
+pub const Reg =
+    logic_core.Reg;
+pub const Internal =
+    logic_core.Internal;
+pub const Input =
+    logic_core.Input;
+pub const Output =
+    logic_core.Output;
+pub const Inout =
+    logic_core.Inout;
+
 pub const Time = struct {
     val_in_ps: usize,
     pub fn micro(val: usize) Time {
@@ -36,7 +40,7 @@ pub const Time = struct {
         return (self.val_in_ps + 999_999) / 1000_000;
     }
 };
-pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };
+pub const ClkTrigger = core.ClkTrigger;
 pub const AssignType = enum(u1) { blocking, nonBlocking };
 pub const AssignDetail = struct { t: AssignType = .blocking, d: Time = .pico(0) };
 pub const SynthTarget = enum { verilog, vhdl, ngspice };
@@ -115,88 +119,6 @@ pub fn CTX(comptime Module: type) type {
             @compileError("TODO : not implemented");
         }
     };
-}
-
-fn Wire(
-    comptime Context: type,
-    comptime UnderlayingType: type,
-    comptime readfn: fn (ctx: Context) ?UnderlayingType,
-) type {
-    return struct {
-        context: Context,
-        pub inline fn read(self: *@This()) ?UnderlayingType {
-            return readfn(self.context);
-        }
-    };
-}
-fn WritableWire(
-    comptime Context: type,
-    comptime UnderlayingType: type,
-    readfn: fn (ctx: Context) ?UnderlayingType,
-    writefn: fn (ctx: Context, value: ?UnderlayingType) void,
-) type {
-    return struct {
-        context: Context,
-        const WireT = Wire(Context, UnderlayingType, readfn);
-        pub inline fn read(self: *@This()) ?UnderlayingType {
-            return readfn(self.context);
-        }
-        pub inline fn write(self: *@This(), value: ?UnderlayingType) void {
-            return writefn(self.context, value);
-        }
-        pub inline fn asWire(self: *@This()) WireT {
-            return WireT{ .context = self.context };
-        }
-    };
-}
-
-pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
-    return struct {
-        comptime trigger: ClkTrigger = trigger,
-        value: ?UnderlayingType,
-        shadow: ?UnderlayingType,
-        id: HDLId,
-        const Self = @This();
-        pub fn init() Self {
-            return Self{
-                .id = .newId(),
-                .value = null,
-                .shadow = null,
-            };
-        }
-        inline fn update(self: *Self) void {
-            self.value = self.shadow;
-        }
-        pub inline fn clkTick(self: *Self, tick: ClkTrigger) void {
-            if ((tick & self.trigger) != 0) self.update();
-        }
-        pub inline fn read(self: *Self) ?UnderlayingType {
-            return self.value;
-        }
-        pub inline fn write(self: *Self, value: ?UnderlayingType) void {
-            self.shadow = value;
-        }
-        const WireT = Wire(Self, UnderlayingType, read);
-        const WritableWireT = WritableWire(Self, UnderlayingType, read, write);
-        pub inline fn asWire(self: *Self) WireT {
-            return WireT{ .context = self };
-        }
-        pub inline fn asWritableWire(self: *Self) WireT {
-            return WritableWireT{ .context = self };
-        }
-    };
-}
-pub fn Input(comptime UnderlayingType: type) type {
-    _ = UnderlayingType;
-    @compileError("TODO : not implemented");
-}
-pub fn Output(comptime UnderlayingType: type) type {
-    _ = UnderlayingType;
-    @compileError("TODO : not implemented");
-}
-pub fn Inout(comptime UnderlayingType: type) type {
-    _ = UnderlayingType;
-    @compileError("TODO : not implemented");
 }
 
 test "CTX magic" {
