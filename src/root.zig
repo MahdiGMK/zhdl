@@ -26,7 +26,7 @@ pub const ClkTrigger = core.ClkTrigger;
 pub const AssignType = module_core.AssignType;
 pub const AssignDetail = module_core.AssignDetail;
 pub const SynthTarget = module_core.SynthTarget;
-pub const Instructions = module_core.Instructions;
+pub const Instruction = module_core.Instruction;
 pub const CTX = module_core.CTX;
 
 test {

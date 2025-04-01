@@ -1,16 +1,18 @@
 const std = @import("std");
-pub const HDLId = struct {
-    value: usize = 0,
+pub const HDLId = packed struct {
+    pub const Type = enum(u4) { Invalid = 0, Ctx, Pin, Reg };
+    ty: Type,
+    value: u60 = 0,
     const Self = @This();
     pub fn valid(self: *Self) bool {
-        return self.value != 0;
+        return self.value != 0 and self.ty;
     }
-    pub fn newId() Self {
+    pub fn newId(ty: Type) Self {
         const State = struct {
-            var global_id_counter: usize = 0;
+            var global_id_counter: u60 = 0;
         };
         State.global_id_counter += 1;
-        return Self{ .value = State.global_id_counter };
+        return Self{ .ty = ty, .value = State.global_id_counter };
     }
 };
 pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };

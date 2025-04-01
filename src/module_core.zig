@@ -24,26 +24,43 @@ pub const ClkTrigger = core.ClkTrigger;
 pub const AssignType = enum(u1) { blocking, nonBlocking };
 pub const AssignDetail = struct { t: AssignType = .blocking, d: Time = .pico(0) };
 pub const SynthTarget = enum { verilog, vhdl, ngspice };
-pub const Instructions = union(enum) {};
+pub const Instruction = union(enum) {
+    Assign: struct { toId: HDLId, fromId: HDLId, detail: AssignDetail },
+    WaitOnDelay: Time,
+    WaitOnClk: ClkTrigger,
+    SubCircuit: HDLId,
+};
 pub fn CTX(comptime Module: type) type {
     return struct {
         module: Module,
         clk: u1,
         id: HDLId,
+        instructions: std.MultiArrayList(Instruction),
+        allocator: std.mem.Allocator,
         const Self = @This();
-        pub fn init() Self {
-            var self: Self = undefined;
-            self.clk = 0;
-            self.id = .newId();
-
-            // @compileError("TODO : not implemented");
-            return self;
+        pub fn init(allocator: std.mem.Allocator) Self {
+            return Self{
+                .clk = 0,
+                .id = .newId(.Ctx),
+                .module = undefined,
+                .instructions = .empty,
+                .allocator = allocator,
+            };
+        }
+        pub fn deinit(self: *Self) void {
+            self.instructions.deinit(self.allocator);
+        }
+        pub fn registerElement(self: *Self, elem: anytype) void {
+            _ = self;
+            _ = elem;
+            @compileError("TODO : not implemented");
         }
         pub fn assign(self: *Self, onto: *WritableWire, value: *Wire, detail: AssignDetail) void {
-            _ = self;
-            _ = onto;
-            _ = value;
-            _ = detail;
+            self.instructions.append(self.allocator, Instruction{ .Assign = .{
+                .toId = onto.getId(),
+                .fromId = value.getId(),
+                .detail = detail,
+            } });
             @compileError("TODO : not implemented");
         }
         pub fn waitDelay(self: *Self, amt: Time) void {
@@ -62,11 +79,11 @@ pub fn CTX(comptime Module: type) type {
             _ = count;
             @compileError("TODO : not implemented");
         }
-        pub fn subcircuit(self: *Self) Self {
+        pub fn subCircuit(self: *Self) Self {
             _ = self;
             @compileError("TODO : not implemented");
         }
-        pub fn submodule(self: *Self, comptime SubCtx: type) SubCtx {
+        pub fn subModule(self: *Self, comptime SubCtx: type) SubCtx {
             _ = self;
             @compileError("TODO : not implemented");
         }
@@ -106,7 +123,8 @@ test "CTX magic" {
         a: Reg(u32, .posedge),
         b: Reg(u16, .negedge),
     });
-    var ctx = Ctx.init();
+    var ctx = Ctx.init(testing.allocator);
+    defer ctx.deinit();
     ctx.module.a = .init();
     ctx.module.b = .init();
 }

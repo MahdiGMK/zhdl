@@ -7,8 +7,9 @@ const underlayingTypeCheck = core.ensurePacked;
 pub fn Wire(
     comptime Context: type,
     comptime UnderlayingType: type,
-    comptime getIdfn: fn (ctx: Context) HDLId,
-    comptime readfn: fn (ctx: Context) ?UnderlayingType,
+    comptime getIdfn: fn (self: Context) HDLId,
+    comptime registerfn: fn (self: Context, ctx: anytype) void,
+    comptime readfn: fn (self: Context) ?UnderlayingType,
 ) type {
     underlayingTypeCheck(UnderlayingType);
 
@@ -17,6 +18,9 @@ pub fn Wire(
         context: Context,
         pub inline fn getId(self: *const @This()) HDLId {
             return getIdfn(self.context);
+        }
+        pub inline fn register(self: *const @This(), ctx: anytype) void {
+            return registerfn(self.context, ctx);
         }
         pub inline fn read(self: *const @This()) ?UnderlayingType {
             return readfn(self.context);
@@ -26,18 +30,22 @@ pub fn Wire(
 pub fn WritableWire(
     comptime Context: type,
     comptime UnderlayingType: type,
-    comptime getIdfn: fn (ctx: Context) HDLId,
-    comptime readfn: fn (ctx: Context) ?UnderlayingType,
-    comptime writefn: fn (ctx: Context, value: ?UnderlayingType) void,
+    comptime getIdfn: fn (self: Context) HDLId,
+    comptime registerfn: fn (self: Context, ctx: anytype) void,
+    comptime readfn: fn (self: Context) ?UnderlayingType,
+    comptime writefn: fn (self: Context, value: ?UnderlayingType) void,
 ) type {
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
         comptime UnderlayingType: type = UnderlayingType,
         context: Context,
-        const WireT = Wire(Context, UnderlayingType, getIdfn, readfn);
+        const WireT = Wire(Context, UnderlayingType, getIdfn, registerfn, readfn);
         pub inline fn getId(self: *const @This()) HDLId {
             return getIdfn(self.context);
+        }
+        pub inline fn register(self: *const @This(), ctx: anytype) void {
+            return registerfn(self, ctx);
         }
         pub inline fn read(self: *const @This()) ?UnderlayingType {
             return readfn(self.context);
@@ -95,7 +103,7 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
         const Self = @This();
         pub fn init() Self {
             return Self{
-                .id = .newId(),
+                .id = .newId(.Reg),
                 .value = null,
                 .shadow = null,
             };
@@ -109,14 +117,17 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
         pub fn getId(self: *const Self) HDLId {
             return self.id;
         }
+        pub fn register(self: *const Self, ctx: anytype) void {
+            ctx.registerElement(self);
+        }
         pub fn read(self: *const Self) ?UnderlayingType {
             return self.value;
         }
         pub fn write(self: *Self, value: ?UnderlayingType) void {
             self.shadow = value;
         }
-        const WireT = Wire(*const Self, UnderlayingType, getId, read);
-        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, read, write);
+        const WireT = Wire(*const Self, UnderlayingType, getId, register, read);
+        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, register, read, write);
         pub inline fn asWire(self: *Self) WireT {
             return WireT{ .context = self };
         }
@@ -136,7 +147,7 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
         const Self = @This();
         pub fn init() Self {
             return Self{
-                .id = .newId(),
+                .id = .newId(.Pin),
                 .value = null,
                 .pin_type = pin_type,
             };
@@ -144,14 +155,17 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
         pub fn getId(self: *const Self) HDLId {
             return self.id;
         }
+        pub fn register(self: *const Self, ctx: anytype) void {
+            ctx.registerElem(self);
+        }
         pub fn read(self: *const Self) ?UnderlayingType {
             return self.value;
         }
         pub fn write(self: *Self, value: ?UnderlayingType) void {
             self.value = value;
         }
-        const WireT = Wire(*const Self, UnderlayingType, getId, read);
-        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, read, write);
+        const WireT = Wire(*const Self, UnderlayingType, getId, register, read);
+        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, register, read, write);
         pub inline fn asWire(self: *const Self) WireT {
             return WireT{ .context = self };
         }
