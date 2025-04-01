@@ -15,6 +15,28 @@ pub const HDLId = struct {
 };
 pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };
 
+pub const Time = struct {
+    val_in_ps: usize,
+    pub fn micro(val: usize) Time {
+        return .{ .val_in_ps = val * 1000_000 };
+    }
+    pub fn nano(val: usize) Time {
+        return Time{ .val_in_ps = val * 1000 };
+    }
+    pub fn pico(val: usize) Time {
+        return .{ .val_in_ps = val };
+    }
+    pub fn toPico(self: *Time) usize {
+        return self.val_in_ps;
+    }
+    pub fn toNano(self: *Time) usize {
+        return (self.val_in_ps + 999) / 1000;
+    }
+    pub fn toMicro(self: *Time) usize {
+        return (self.val_in_ps + 999_999) / 1000_000;
+    }
+};
+
 pub inline fn ensurePacked(T: type) void {
     const tinfo = @typeInfo(T);
     sw: switch (tinfo) {
