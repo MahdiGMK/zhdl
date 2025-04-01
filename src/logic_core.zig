@@ -51,7 +51,7 @@ pub fn WritableWire(
     };
 }
 
-pub const WireAccess = enum { wire, writableWire };
+pub const WireAccess = enum(bool) { wire, writableWire };
 pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
     // var iwire = Internal(u1).init();
     // const DummyWire = @TypeOf(iwire.asWire());
