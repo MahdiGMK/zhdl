@@ -88,7 +88,11 @@ pub inline fn ensurePacked(T: type) void {
         },
         else => break :sw,
     }
-    @compileError(std.fmt.comptimePrint("Unsupported type as UnderlayingType : {}", .{T}));
+    compErrFmt("The given type({}) has holes in memory layout. Unsupported!", .{T});
+}
+
+pub fn compErrFmt(comptime fmt: []const u8, args: anytype) void {
+    @compileError(std.fmt.comptimePrint(fmt, args));
 }
 
 test "packed struct has no holes" {

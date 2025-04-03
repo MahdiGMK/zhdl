@@ -59,7 +59,7 @@ pub fn WritableWire(
     };
 }
 
-pub const WireAccess = enum(bool) { wire, writableWire };
+pub const WireAccess = enum(u1) { wire, writableWire };
 pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
     // var iwire = Internal(u1).init();
     // const DummyWire = @TypeOf(iwire.asWire());
@@ -69,6 +69,7 @@ pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
 
     const isWire =
         std.meta.hasFn(W, "getId") and
+        std.meta.hasFn(W, "register") and
         std.meta.hasFn(W, "read");
     const isWWire = isWire and
         std.meta.hasFn(W, "write") and
@@ -78,7 +79,9 @@ pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
 
 test "wire-access detection" {
     const testing = std.testing;
-    inline for (.{ u6, i19, f32, f16, f64, packed struct { a: u1, b: u5 } }) |TT| {
+    inline for (
+        .{ u6, i19, f32, packed struct { a: u1, b: u5 }, packed union { a: u1, b: u5 }, enum { a, b } },
+    ) |TT| {
         var internal = Internal(TT).init();
         var reg = Reg(TT, .posedge).init();
 
@@ -90,6 +93,22 @@ test "wire-access detection" {
 
         try testing.expectError(error.notWire, checkWireAccess(TT));
     }
+}
+
+pub fn ensureWireAccess(comptime W: type, comptime access: WireAccess) void {
+    const acc = comptime checkWireAccess(W) catch core.compErrFmt("Expected a {s}, got a non-wire : {}", .{ @tagName(access), W });
+    if (@intFromEnum(acc) < @intFromEnum(access))
+        core.compErrFmt("Expected a {s}, got {s}", .{ @tagName(access), @tagName(acc) });
+}
+test "ensure wire-access" {
+    var pin = Internal(u8).init();
+    ensureWireAccess(@TypeOf(pin), .writableWire);
+    ensureWireAccess(@TypeOf(pin), .wire);
+    ensureWireAccess(@TypeOf(pin.asWritableWire()), .writableWire);
+    ensureWireAccess(@TypeOf(pin.asWritableWire()), .wire);
+    ensureWireAccess(@TypeOf(pin.asWire()), .wire);
+    // ensureWireAccess(@TypeOf(pin.asWire()), .writableWire); correct compErr
+    // ensureWireAccess(u8, .writableWire); correct compErr
 }
 
 pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {

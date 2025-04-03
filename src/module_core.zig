@@ -55,13 +55,16 @@ pub fn CTX(comptime Module: type) type {
             _ = elem;
             @compileError("TODO : not implemented");
         }
-        pub fn assign(self: *Self, onto: *WritableWire, value: *Wire, detail: AssignDetail) void {
+        pub fn assign(self: *Self, onto: anytype, value: anytype, detail: AssignDetail) void {
+            logic_core.ensureWireAccess(@TypeOf(onto), .writableWire);
+            logic_core.ensureWireAccess(@TypeOf(value), .wire);
+
             self.instructions.append(self.allocator, Instruction{ .Assign = .{
                 .toId = onto.getId(),
                 .fromId = value.getId(),
                 .detail = detail,
-            } });
-            @compileError("TODO : not implemented");
+            } }) catch unreachable; //TODO: wacky
+            // @compileError("TODO : not implemented");
         }
         pub fn waitDelay(self: *Self, amt: Time) void {
             _ = self;
@@ -127,4 +130,5 @@ test "CTX magic" {
     defer ctx.deinit();
     ctx.module.a = .init();
     ctx.module.b = .init();
+    ctx.assign(ctx.module.a, ctx.module.b, .{});
 }
