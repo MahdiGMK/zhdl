@@ -14,7 +14,7 @@ pub fn Wire(
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
-        comptime UnderlayingType: type = UnderlayingType,
+        const Type = UnderlayingType;
         context: Context,
         pub inline fn getId(self: *const @This()) HDLId {
             return getIdfn(self.context);
@@ -38,7 +38,7 @@ pub fn WritableWire(
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
-        comptime UnderlayingType: type = UnderlayingType,
+        const Type = UnderlayingType;
         context: Context,
         const WireT = Wire(Context, UnderlayingType, getIdfn, registerfn, readfn);
         pub inline fn getId(self: *const @This()) HDLId {
@@ -68,6 +68,8 @@ pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
     // const wwire_tinfo = @typeInfo(DummyWritableWire).@"struct";
 
     const isWire =
+        @typeInfo(W) == .@"struct" and
+        @hasDecl(W, "Type") and
         std.meta.hasFn(W, "getId") and
         std.meta.hasFn(W, "register") and
         std.meta.hasFn(W, "read");
@@ -77,13 +79,16 @@ pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
     return if (isWWire) WireAccess.writableWire else if (isWire) WireAccess.wire else error.notWire;
 }
 
+const SOME_PACKED_TYPES =
+    .{ u6, i19, f32, packed struct { a: u1, b: u5 }, packed union { a: u1, b: u5 }, enum { a, b } };
+const testing = std.testing;
 test "wire-access detection" {
-    const testing = std.testing;
-    inline for (
-        .{ u6, i19, f32, packed struct { a: u1, b: u5 }, packed union { a: u1, b: u5 }, enum { a, b } },
-    ) |TT| {
+    inline for (SOME_PACKED_TYPES) |TT| {
         var internal = Internal(TT).init();
         var reg = Reg(TT, .posedge).init();
+
+        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal)));
+        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal)));
 
         try testing.expectEqual(WireAccess.wire, try checkWireAccess(@TypeOf(internal.asWire())));
         try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal.asWritableWire())));
@@ -111,10 +116,29 @@ test "ensure wire-access" {
     // ensureWireAccess(u8, .writableWire); correct compErr
 }
 
+pub fn checkWireType(comptime W: type) error{notWire}!type {
+    _ = try checkWireAccess(W);
+    return W.Type;
+}
+test "check wire underlaying type" {
+    inline for (SOME_PACKED_TYPES) |TT| {
+        var internal = Internal(TT).init();
+        var reg = Reg(TT, .posedge).init();
+        try testing.expectError(error.notWire, checkWireType(TT));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(internal)));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(reg)));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(internal.asWire())));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(reg.asWire())));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(internal.asWritableWire())));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(reg.asWritableWire())));
+    }
+}
+
 pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
+        const Type = UnderlayingType;
         comptime trigger: ClkTrigger = trigger,
         value: ?UnderlayingType,
         shadow: ?UnderlayingType,
@@ -160,6 +184,7 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
+        const Type = UnderlayingType;
         pin_type: PinType,
         value: ?UnderlayingType,
         id: HDLId,
