@@ -77,11 +77,22 @@ pub fn CTX(comptime Module: type) type {
             @compileError("TODO : not implemented");
         }
 
+        pub fn cases(self: *Self, value: anytype) []Self {
+            _ = self;
+            _ = value;
+            @compileError("TODO : not implemented");
+        }
+        pub fn branch(self: *Self, cnd: anytype) []union(enum) { t: Self, f: Self } {
+            _ = self;
+            _ = cnd;
+            @compileError("TODO : not implemented");
+        }
         pub fn iter(self: *Self, comptime count: usize) []Self {
             _ = self;
             _ = count;
             @compileError("TODO : not implemented");
         }
+
         pub fn subCircuit(self: *Self) Self {
             _ = self;
             @compileError("TODO : not implemented");
@@ -131,4 +142,34 @@ test "CTX magic" {
     ctx.module.a = .init();
     ctx.module.b = .init();
     ctx.assign(ctx.module.a, ctx.module.b, .{});
+
+    // ctx.branch(1, struct {
+    //     fn True(_: anytype) void {}
+    //     fn False(_: anytype) void {}
+    // });
+
+    // for (ctx.cases(1)) |x| switch (x) {
+    //     0 => {...},
+    //     1 => {...},
+    //     ...
+    // }
+    // for (ctx.branch(1)) |x| switch (x) {
+    //     .t => |ctx_i| {...},
+    //     .f => |ctx_i| {...},
+    // };
+    // for (ctx.iter(32)) |ctx_i| {...}
+    //
+
+    // x.@"0"(12);
+    // ctx.If(1, );
+    // for (ctx.If(1)) |ctx_i| {
+    //     _ = ctx_i;
+    // }
+    // for(ctx.branch(1), 0..) |
+    // for(ctx.)
+    // inline for (ctx.branch(1)) |ctx_c| switch (ctx_c) {
+    //     .True => |ctx_t| {},
+    //     .False => |ctx_f| {},
+    // };
+    // for(ctx.iter(32)) |ctx_i| {}
 }
