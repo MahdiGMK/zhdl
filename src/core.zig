@@ -1,20 +1,23 @@
 const std = @import("std");
-pub const HDLId = packed struct {
-    pub const Type = enum(u4) { Invalid = 0, Ctx, Pin, Reg };
-    ty: Type,
-    value: u60 = 0,
-    const Self = @This();
-    pub fn valid(self: *Self) bool {
-        return self.value != 0 and self.ty;
-    }
-    pub fn newId(ty: Type) Self {
-        const State = struct {
-            var global_id_counter: u60 = 0;
-        };
-        State.global_id_counter += 1;
-        return Self{ .ty = ty, .value = State.global_id_counter };
-    }
-};
+pub const HDLElemType = enum(u4) { Circuit, Wire };
+
+pub fn HDLId(comptime ty: HDLElemType) type {
+    return packed struct {
+        ty: HDLElemType,
+        value: u60 = 0,
+        const Self = @This();
+        pub fn valid(self: *Self) bool {
+            return self.value != 0 and self.ty;
+        }
+        pub fn newId() Self {
+            const State = struct {
+                var global_id_counter: u60 = 0;
+            };
+            State.global_id_counter += 1;
+            return Self{ .ty = ty, .value = State.global_id_counter };
+        }
+    };
+}
 pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };
 
 pub const Time = struct {

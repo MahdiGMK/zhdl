@@ -7,7 +7,7 @@ const underlayingTypeCheck = core.ensurePacked;
 pub fn Wire(
     comptime Context: type,
     comptime UnderlayingType: type,
-    comptime getIdfn: fn (self: Context) HDLId,
+    comptime getIdfn: fn (self: Context) HDLId(.Wire),
     comptime registerfn: fn (self: Context, ctx: anytype) void,
     comptime readfn: fn (self: Context) ?UnderlayingType,
 ) type {
@@ -16,7 +16,7 @@ pub fn Wire(
     return struct {
         const Type = UnderlayingType;
         context: Context,
-        pub inline fn getId(self: *const @This()) HDLId {
+        pub inline fn getId(self: *const @This()) HDLId(.Wire) {
             return getIdfn(self.context);
         }
         pub inline fn register(self: *const @This(), ctx: anytype) void {
@@ -30,7 +30,7 @@ pub fn Wire(
 pub fn WritableWire(
     comptime Context: type,
     comptime UnderlayingType: type,
-    comptime getIdfn: fn (self: Context) HDLId,
+    comptime getIdfn: fn (self: Context) HDLId(.Wire),
     comptime registerfn: fn (self: Context, ctx: anytype) void,
     comptime readfn: fn (self: Context) ?UnderlayingType,
     comptime writefn: fn (self: Context, value: ?UnderlayingType) void,
@@ -41,7 +41,7 @@ pub fn WritableWire(
         const Type = UnderlayingType;
         context: Context,
         const WireT = Wire(Context, UnderlayingType, getIdfn, registerfn, readfn);
-        pub inline fn getId(self: *const @This()) HDLId {
+        pub inline fn getId(self: *const @This()) HDLId(.Wire) {
             return getIdfn(self.context);
         }
         pub inline fn register(self: *const @This(), ctx: anytype) void {
@@ -61,12 +61,6 @@ pub fn WritableWire(
 
 pub const WireAccess = enum(u1) { wire, writableWire };
 pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
-    // var iwire = Internal(u1).init();
-    // const DummyWire = @TypeOf(iwire.asWire());
-    // const wire_tinfo = @typeInfo(DummyWire).@"struct";
-    // const DummyWritableWire = @TypeOf(iwire.asWritableWire());
-    // const wwire_tinfo = @typeInfo(DummyWritableWire).@"struct";
-
     const isWire =
         @typeInfo(W) == .@"struct" and
         @hasDecl(W, "Type") and
@@ -133,6 +127,12 @@ test "check wire underlaying type" {
         try testing.expectEqual(TT, try checkWireType(@TypeOf(reg.asWritableWire())));
     }
 }
+pub fn ensureSameType(comptime W1: type, comptime W2: type) void {
+    const T1 = try checkWireType(W1);
+    const T2 = try checkWireType(W2);
+    comptime if (T1 != T2)
+        core.compErrFmt("Missmatched wire types. {} != {}", .{ T1, T2 });
+}
 
 pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
     underlayingTypeCheck(UnderlayingType);
@@ -142,11 +142,11 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
         comptime trigger: ClkTrigger = trigger,
         value: ?UnderlayingType,
         shadow: ?UnderlayingType,
-        id: HDLId,
+        id: HDLId(.Wire),
         const Self = @This();
         pub fn init() Self {
             return Self{
-                .id = .newId(.Reg),
+                .id = .newId(),
                 .value = null,
                 .shadow = null,
             };
@@ -157,7 +157,7 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
         pub inline fn clkTick(self: *Self, tick: ClkTrigger) void {
             if ((tick & self.trigger) != 0) self.update();
         }
-        pub fn getId(self: *const Self) HDLId {
+        pub fn getId(self: *const Self) HDLId(.Wire) {
             return self.id;
         }
         pub fn register(self: *const Self, ctx: anytype) void {
@@ -187,16 +187,16 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
         const Type = UnderlayingType;
         pin_type: PinType,
         value: ?UnderlayingType,
-        id: HDLId,
+        id: HDLId(.Wire),
         const Self = @This();
         pub fn init() Self {
             return Self{
-                .id = .newId(.Pin),
+                .id = .newId(),
                 .value = null,
                 .pin_type = pin_type,
             };
         }
-        pub fn getId(self: *const Self) HDLId {
+        pub fn getId(self: *const Self) HDLId(.Wire) {
             return self.id;
         }
         pub fn register(self: *const Self, ctx: anytype) void {
