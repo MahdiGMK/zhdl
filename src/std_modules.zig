@@ -1,18 +1,17 @@
 const std = @import("std");
 const core = @import("core.zig");
 const logic_core = @import("logic_core.zig");
+const traits = @import("traits.zig");
 const module_core = @import("module_core.zig");
-pub const Wire =
-    logic_core.Wire;
-pub const WritableWire =
-    logic_core.WritableWire;
+pub const WireTrait =
+    traits.WireTrait;
+pub const WritableWireTrait =
+    traits.WritableWireTrait;
 const CTX =
     module_core.CTX;
 
 // pub fn DLatch(ctx: anytype, d: anytype, en: anytype, q: anytype) void {
-//     logic_core.ensureWireAccess(d, .wire);
-//     logic_core.ensureWireAccess(en, .wire);
-//     logic_core.ensureWireAccess(q, .writableWire);
+//     _ = ctx;
 // }
 //
 // pub fn WritableCompositeWire(Wires: type) type {

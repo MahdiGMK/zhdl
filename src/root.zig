@@ -22,7 +22,7 @@ pub const Inout =
     logic_core.Inout;
 
 pub const Time = core.Time;
-pub const ClkTrigger = core.ClkTrigger;
+pub const ClkTrigger = core.EdgeTrigger;
 pub const AssignType = module_core.AssignType;
 pub const AssignDetail = module_core.AssignDetail;
 pub const SynthTarget = module_core.SynthTarget;
@@ -34,4 +34,5 @@ test {
     _ = @import("logic_core.zig");
     _ = @import("module_core.zig");
     _ = @import("std_modules.zig");
+    _ = @import("traits.zig");
 }

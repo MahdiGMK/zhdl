@@ -18,7 +18,7 @@ pub fn HDLId(comptime ty: HDLElemType) type {
         }
     };
 }
-pub const ClkTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };
+pub const EdgeTrigger = enum(u2) { none = 0, posedge = 1, negedge = 2, both = 3 };
 
 pub const Time = struct {
     val_in_ps: usize,

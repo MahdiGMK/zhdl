@@ -8,6 +8,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const barazzesh = b.dependency("barazzesh", .{});
+    lib_mod.addImport("barazzesh", barazzesh.module("barazzesh"));
 
     const lib = b.addLibrary(.{
         .linkage = .static,

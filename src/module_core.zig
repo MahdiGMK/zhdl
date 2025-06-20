@@ -20,7 +20,7 @@ pub const Inout =
     logic_core.Inout;
 
 pub const Time = core.Time;
-pub const ClkTrigger = core.ClkTrigger;
+pub const ClkTrigger = core.EdgeTrigger;
 pub const AssignType = enum(u1) { blocking, nonBlocking };
 pub const AssignDetail = struct { t: AssignType = .blocking, d: Time = .pico(0) };
 pub const SynthTarget = enum { verilog, vhdl, ngspice };

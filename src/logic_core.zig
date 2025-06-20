@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("core.zig");
 const HDLId = core.HDLId;
-const ClkTrigger = core.ClkTrigger;
+const ClkTrigger = core.EdgeTrigger;
 const underlayingTypeCheck = core.ensurePacked;
 
 pub fn Wire(
@@ -66,7 +66,7 @@ pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
         @hasDecl(W, "Type") and
         std.meta.hasFn(W, "getId") and
         std.meta.hasFn(W, "register") and
-        std.meta.hasFn(W, "read");
+        std.meta.hasFn(W, "read"); // TODO @TypeOf(W.read) ~= fn(*const W) ?W.Type
     const isWWire = isWire and
         std.meta.hasFn(W, "write") and
         std.meta.hasFn(W, "asWire");
