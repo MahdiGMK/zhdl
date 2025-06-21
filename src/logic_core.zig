@@ -3,74 +3,26 @@ const core = @import("core.zig");
 const HDLId = core.HDLId;
 const ClkTrigger = core.EdgeTrigger;
 const underlayingTypeCheck = core.ensurePacked;
+const traits = @import("traits.zig");
+const barazzesh = @import("barazzesh");
+const hasTrait = barazzesh.hasTrait;
+const GetTrait = barazzesh.getTrait;
+const ModuleTrait = traits.ModuleTrait;
+const WireTrait = traits.WireTrait;
+const WritableWireTrait = traits.WritableWireTrait;
 
-pub fn Wire(
-    comptime Context: type,
-    comptime UnderlayingType: type,
-    comptime getIdfn: fn (self: Context) HDLId(.Wire),
-    comptime registerfn: fn (self: Context, ctx: anytype) void,
-    comptime readfn: fn (self: Context) ?UnderlayingType,
-) type {
-    underlayingTypeCheck(UnderlayingType);
-
-    return struct {
-        const Type = UnderlayingType;
-        context: Context,
-        pub inline fn getId(self: *const @This()) HDLId(.Wire) {
-            return getIdfn(self.context);
-        }
-        pub inline fn register(self: *const @This(), ctx: anytype) void {
-            return registerfn(self.context, ctx);
-        }
-        pub inline fn read(self: *const @This()) ?UnderlayingType {
-            return readfn(self.context);
-        }
-    };
+pub const WireAccess = enum(u1) { wire = 0, writableWire = 1 };
+pub fn checkWireAccess(Wire: type) error{NotWire}!WireAccess {
+    if (@typeInfo(Wire) != .@"struct" or
+        !@hasDecl(Wire, "Type") or
+        @TypeOf(Wire.Type) != type) return error.NotWire;
+    if (hasTrait(Wire, WritableWireTrait)) return .writableWire;
+    if (hasTrait(Wire, WireTrait)) return .wire;
+    return error.NotWire;
 }
-pub fn WritableWire(
-    comptime Context: type,
-    comptime UnderlayingType: type,
-    comptime getIdfn: fn (self: Context) HDLId(.Wire),
-    comptime registerfn: fn (self: Context, ctx: anytype) void,
-    comptime readfn: fn (self: Context) ?UnderlayingType,
-    comptime writefn: fn (self: Context, value: ?UnderlayingType) void,
-) type {
-    underlayingTypeCheck(UnderlayingType);
-
-    return struct {
-        const Type = UnderlayingType;
-        context: Context,
-        const WireT = Wire(Context, UnderlayingType, getIdfn, registerfn, readfn);
-        pub inline fn getId(self: *const @This()) HDLId(.Wire) {
-            return getIdfn(self.context);
-        }
-        pub inline fn register(self: *const @This(), ctx: anytype) void {
-            return registerfn(self, ctx);
-        }
-        pub inline fn read(self: *const @This()) ?UnderlayingType {
-            return readfn(self.context);
-        }
-        pub inline fn write(self: *@This(), value: ?UnderlayingType) void {
-            return writefn(self.context, value);
-        }
-        pub inline fn asWire(self: *const @This()) WireT {
-            return WireT{ .context = self.context };
-        }
-    };
-}
-
-pub const WireAccess = enum(u1) { wire, writableWire };
-pub fn checkWireAccess(comptime W: type) error{notWire}!WireAccess {
-    const isWire =
-        @typeInfo(W) == .@"struct" and
-        @hasDecl(W, "Type") and
-        std.meta.hasFn(W, "getId") and
-        std.meta.hasFn(W, "register") and
-        std.meta.hasFn(W, "read"); // TODO @TypeOf(W.read) ~= fn(*const W) ?W.Type
-    const isWWire = isWire and
-        std.meta.hasFn(W, "write") and
-        std.meta.hasFn(W, "asWire");
-    return if (isWWire) WireAccess.writableWire else if (isWire) WireAccess.wire else error.notWire;
+pub fn checkWireType(Wire: type) error{NotWire}!type {
+    _ = try checkWireAccess(Wire);
+    return Wire.Type;
 }
 
 const SOME_PACKED_TYPES =
@@ -80,17 +32,21 @@ test "wire-access detection" {
     inline for (SOME_PACKED_TYPES) |TT| {
         var internal = Internal(TT).init();
         var reg = Reg(TT, .posedge).init();
+        const internalWire = GetTrait(@TypeOf(internal), WireTrait).init(&internal);
+        const internalWWire = GetTrait(@TypeOf(internal), WritableWireTrait).init(&internal);
+        const regWire = GetTrait(@TypeOf(reg), WireTrait).init(&reg);
+        const regWWire = GetTrait(@TypeOf(reg), WritableWireTrait).init(&reg);
 
         try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal)));
-        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal)));
+        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(reg)));
 
-        try testing.expectEqual(WireAccess.wire, try checkWireAccess(@TypeOf(internal.asWire())));
-        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internal.asWritableWire())));
+        try testing.expectEqual(WireAccess.wire, try checkWireAccess(@TypeOf(internalWire)));
+        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(internalWWire)));
 
-        try testing.expectEqual(WireAccess.wire, try checkWireAccess(@TypeOf(reg.asWire())));
-        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(reg.asWritableWire())));
+        try testing.expectEqual(WireAccess.wire, try checkWireAccess(@TypeOf(regWire)));
+        try testing.expectEqual(WireAccess.writableWire, try checkWireAccess(@TypeOf(regWWire)));
 
-        try testing.expectError(error.notWire, checkWireAccess(TT));
+        try testing.expectError(error.NotWire, checkWireAccess(TT));
     }
 }
 
@@ -101,30 +57,33 @@ pub fn ensureWireAccess(comptime W: type, comptime access: WireAccess) void {
 }
 test "ensure wire-access" {
     var pin = Internal(u8).init();
+    const pinWire = GetTrait(@TypeOf(pin), WireTrait).init(&pin);
+    const pinWWire = GetTrait(@TypeOf(pin), WritableWireTrait).init(&pin);
     ensureWireAccess(@TypeOf(pin), .writableWire);
     ensureWireAccess(@TypeOf(pin), .wire);
-    ensureWireAccess(@TypeOf(pin.asWritableWire()), .writableWire);
-    ensureWireAccess(@TypeOf(pin.asWritableWire()), .wire);
-    ensureWireAccess(@TypeOf(pin.asWire()), .wire);
-    // ensureWireAccess(@TypeOf(pin.asWire()), .writableWire); correct compErr
-    // ensureWireAccess(u8, .writableWire); correct compErr
+    ensureWireAccess(@TypeOf(pinWWire), .writableWire);
+    ensureWireAccess(@TypeOf(pinWWire), .wire);
+    ensureWireAccess(@TypeOf(pinWire), .wire);
+    // ensureWireAccess(@TypeOf(pinWire), .writableWire); // correct compErr
+    // ensureWireAccess(u8, .writableWire); // correct compErr
 }
 
-pub fn checkWireType(comptime W: type) error{notWire}!type {
-    _ = try checkWireAccess(W);
-    return W.Type;
-}
 test "check wire underlaying type" {
     inline for (SOME_PACKED_TYPES) |TT| {
         var internal = Internal(TT).init();
         var reg = Reg(TT, .posedge).init();
-        try testing.expectError(error.notWire, checkWireType(TT));
+        const internalWire = GetTrait(@TypeOf(internal), WireTrait).init(&internal);
+        const internalWWire = GetTrait(@TypeOf(internal), WritableWireTrait).init(&internal);
+        const regWire = GetTrait(@TypeOf(reg), WireTrait).init(&reg);
+        const regWWire = GetTrait(@TypeOf(reg), WritableWireTrait).init(&reg);
+
+        try testing.expectError(error.NotWire, checkWireType(TT));
         try testing.expectEqual(TT, try checkWireType(@TypeOf(internal)));
         try testing.expectEqual(TT, try checkWireType(@TypeOf(reg)));
-        try testing.expectEqual(TT, try checkWireType(@TypeOf(internal.asWire())));
-        try testing.expectEqual(TT, try checkWireType(@TypeOf(reg.asWire())));
-        try testing.expectEqual(TT, try checkWireType(@TypeOf(internal.asWritableWire())));
-        try testing.expectEqual(TT, try checkWireType(@TypeOf(reg.asWritableWire())));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(internalWire)));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(regWire)));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(internalWWire)));
+        try testing.expectEqual(TT, try checkWireType(@TypeOf(regWWire)));
     }
 }
 pub fn ensureSameType(comptime W1: type, comptime W2: type) void {
@@ -138,7 +97,7 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
-        const Type = UnderlayingType;
+        pub const Type = UnderlayingType;
         comptime trigger: ClkTrigger = trigger,
         value: ?UnderlayingType,
         shadow: ?UnderlayingType,
@@ -169,14 +128,6 @@ pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {
         pub fn write(self: *Self, value: ?UnderlayingType) void {
             self.shadow = value;
         }
-        const WireT = Wire(*const Self, UnderlayingType, getId, register, read);
-        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, register, read, write);
-        pub inline fn asWire(self: *Self) WireT {
-            return WireT{ .context = self };
-        }
-        pub inline fn asWritableWire(self: *Self) WritableWireT {
-            return WritableWireT{ .context = self };
-        }
     };
 }
 const PinType = enum(u2) { internal = 0, input = 1, output = 2, inout = 3 };
@@ -184,7 +135,7 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
     underlayingTypeCheck(UnderlayingType);
 
     return struct {
-        const Type = UnderlayingType;
+        pub const Type = UnderlayingType;
         pin_type: PinType,
         value: ?UnderlayingType,
         id: HDLId(.Wire),
@@ -207,14 +158,6 @@ fn Pin(comptime UnderlayingType: type, comptime pin_type: PinType) type {
         }
         pub fn write(self: *Self, value: ?UnderlayingType) void {
             self.value = value;
-        }
-        const WireT = Wire(*const Self, UnderlayingType, getId, register, read);
-        const WritableWireT = WritableWire(*Self, UnderlayingType, getId, register, read, write);
-        pub inline fn asWire(self: *const Self) WireT {
-            return WireT{ .context = self };
-        }
-        pub inline fn asWritableWire(self: *Self) WritableWireT {
-            return WritableWireT{ .context = self };
         }
     };
 }
