@@ -5,10 +5,11 @@ pub const logic_core = @import("logic_core.zig");
 pub const module_core = @import("module_core.zig");
 pub const std_modules = @import("std_modules.zig");
 pub const HDLId = core.HDLId;
+pub const traits = @import("traits.zig");
 pub const Wire =
-    logic_core.Wire;
-pub const WritableWire =
-    logic_core.WritableWire;
+    traits.WireTrait;
+pub const WritableWireTrait =
+    traits.WritableWireTrait;
 
 pub const Reg =
     logic_core.Reg;

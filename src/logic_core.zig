@@ -86,11 +86,17 @@ test "check wire underlaying type" {
         try testing.expectEqual(TT, try checkWireType(@TypeOf(regWWire)));
     }
 }
-pub fn ensureSameType(comptime W1: type, comptime W2: type) void {
-    const T1 = try checkWireType(W1);
-    const T2 = try checkWireType(W2);
+pub fn ensureSameType(comptime Wire1: type, comptime Wire2: type) error{NonWire}!void {
+    const T1 = try checkWireType(Wire1);
+    const T2 = try checkWireType(Wire2);
     comptime if (T1 != T2)
         core.compErrFmt("Missmatched wire types. {} != {}", .{ T1, T2 });
+}
+pub fn countPossibleValues(Wire: type) error{ NonWire, TooMany }!usize {
+    const T = try checkWireType(Wire);
+    const btc = @bitSizeOf(T);
+    if (btc > 10) return error.TooMany;
+    return @shlExact(1, btc);
 }
 
 pub fn Reg(comptime UnderlayingType: type, comptime trigger: ClkTrigger) type {

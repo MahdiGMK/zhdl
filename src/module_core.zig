@@ -27,10 +27,10 @@ pub const SynthTarget = enum { verilog, vhdl, ngspice };
 pub const Instruction = union(enum) {
     Assign: struct { toId: HDLId(.Wire), fromId: HDLId(.Wire), detail: AssignDetail },
     WaitOnDelay: Time,
-    WaitOnClk: ClkTrigger,
+    WaitOnClk: ClkTrigger, // hopefully extend this to WaitOn(Edge/Level)Event
     Cases: struct { condId: HDLId(.Wire), cases: []HDLId(.Circuit) },
     Iter: struct { iterations: []HDLId(.Circuit) },
-    SubCircuit: HDLId(.Circuit),
+    SubCircuit: struct { variants: []HDLId(.Circuit), ports: []HDLId(.Circuit) },
 };
 pub const CircuitPool = struct {
     var allocator: std.mem.Allocator = undefined;
@@ -48,10 +48,11 @@ pub const CircuitPool = struct {
         }
         circuits.deinit(allocator);
     }
-    pub fn storeCirc(circ: *Circuit) !void {
+    pub fn storeCirc(circ: *const Circuit) !void {
         try circuits.put(allocator, circ.id, circ.*);
     }
 };
+const Error = error{OutOfMemory};
 pub const Circuit = struct {
     id: HDLId(.Circuit),
     meta: usize,
@@ -66,15 +67,27 @@ pub const Circuit = struct {
             .meta = meta,
             .instructions = .empty,
         };
-        std.debug.print("init : {}\n", .{self.id});
         return self;
     }
-    pub fn store(self: *This) !void {
-        std.debug.print("store in pool : {}\n", .{self.id});
+    pub fn store(self: *const This) Error!void { // copy circ to circpool1
         try CircuitPool.storeCirc(self);
     }
-    pub fn deinit(self: *This) void { // copy circ to circpool1
-        std.debug.print("deinit : {}\n", .{self.id});
+    pub fn deinit(self: *This) void { // clean circuit memory
+        for (self.instructions.items) |*instr| {
+            switch (instr.*) {
+                .Iter => |itr| {
+                    CircuitPool.allocator.free(itr.iterations);
+                },
+                .Cases => |csz| {
+                    CircuitPool.allocator.free(csz.cases);
+                },
+                .SubCircuit => |sub| {
+                    CircuitPool.allocator.free(sub.variants);
+                    CircuitPool.allocator.free(sub.ports);
+                },
+                else => {}, // pay close attention
+            }
+        }
         self.instructions.deinit(CircuitPool.allocator);
     }
     pub fn registerElement(self: *This, elem: anytype) void {
@@ -93,47 +106,57 @@ pub const Circuit = struct {
             .detail = detail,
         } });
     }
-    pub fn waitDelay(self: *This, amt: Time) !void {
+    pub fn waitDelay(self: *This, amt: Time) Error!void {
         try self.instructions.append(CircuitPool.allocator, Instruction{ .WaitOnDelay = amt });
     }
-    pub fn waitClk(self: *This, trigger: ClkTrigger) void {
+    pub fn waitClk(self: *This, trigger: ClkTrigger) Error!void {
         try self.instructions.append(CircuitPool.allocator, Instruction{ .WaitOnClk = trigger });
     }
 
-    pub fn cases(self: *This, value: anytype) []struct { meta: @TypeOf(value).Type, ctx: This } {
+    fn CasesPair(Meta: type) type {
+        return struct { meta: Meta, circuit: This };
+    }
+    pub fn cases(self: *This, value: anytype) [logic_core.countPossibleValues(@TypeOf(value))]CasesPair(logic_core.checkWireType(@TypeOf(value))) {
         logic_core.ensureWireAccess(@TypeOf(value), .wire);
+        comptime var case: [logic_core.countPossibleValues(@TypeOf(value))]CasesPair(logic_core.checkWireType(@TypeOf(value))) = undefined;
+        // for () |value| {}
         _ = self;
         @compileError("TODO : not implemented");
     }
-    pub fn branch(self: *This, cnd: anytype) []This {
+    const BranchPair = struct { meta: bool, circuit: This };
+    pub fn branch(self: *This, cnd: anytype) [2]BranchPair {
         logic_core.ensureWireAccess(@TypeOf(cnd), .wire);
-        const case = [_]This{ .init(0), .init(1) };
+        const case = [2]BranchPair{
+            .{ .meta = false, .circuit = .init(0) },
+            .{ .meta = true, .circuit = .init(1) },
+        };
         self.instructions.append(CircuitPool.allocator, Instruction{
             .Cases = .{
                 .conditionId = cnd.getId(),
-                .cases = .{ case[0].id, case[1].id },
+                .cases = CircuitPool.allocator.dupe(HDLId(.Circuit), .{ case[0].circuit.id, case[1].circuit.id }),
             },
         });
         return case;
     }
-    pub fn iter(self: *This, comptime count: usize) []This {
-        const iters: [count]This = undefined;
-        for (iters, 0..) |*it, meta| {
+    pub fn iter(self: *This, comptime count: usize) Error![count]This {
+        var iters: [count]This = undefined;
+        var ids: [count]HDLId(.Circuit) = undefined;
+        for (&iters, &ids, 0..) |*it, *id, meta| {
             it.* = .init(meta);
+            id.* = it.id;
         }
-        self.instructions.append(
-            CircuitPool.allocator,
-        );
+        try self.instructions.append(CircuitPool.allocator, Instruction{
+            .Iter = .{
+                .iterations = try CircuitPool.allocator.dupe(HDLId(.Circuit), ids[0..count]),
+            },
+        });
+        return iters;
     }
 
-    pub fn subCircuit(self: *This) This {
+    pub fn subCircuit(self: *This, comptime variants: anytype, ports: anytype) This {
         _ = self;
         @compileError("TODO : not implemented");
         // self.instructions.append(gpa: Allocator, elem: T)
-    }
-    pub fn subModule(self: *This, comptime SubCtx: type) SubCtx {
-        _ = self;
-        @compileError("TODO : not implemented");
     }
 
     /// start
@@ -174,6 +197,12 @@ test "CTX magic" {
     {
         var ctx = Circuit.init(0);
         defer ctx.store() catch {};
+        for (&try ctx.iter(4)) |*circ| {
+            defer circ.store() catch {};
+
+            std.debug.print("{}, ", .{circ.meta});
+        }
+        std.debug.print("\n", .{});
         // try ctx.assign(a.asWritableWire(), b, .{}); // a = b;
     }
 
